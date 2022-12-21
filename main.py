@@ -28,8 +28,8 @@ TESTNET = False
 api_key_test = os.getenv("BINANCE_TESTNET_API_KEY")
 api_secret_test = os.getenv("BINANCE_TESTNET_SECRET_KEY")
 
-api_key_live = os.getenv("BINANCE_TESTNET_API_KEY")
-api_secret_live = os.getenv("BINANCE_TESTNET_SECRET_KEY")
+api_key_live = os.getenv("binance_api_key")
+api_secret_live = os.getenv("binance_api_key_secret")
 
 
 
@@ -43,8 +43,6 @@ else:
 
 
 
-
-
 #DEFINING USER INPUTS
 #_________________________________________________________________
 #select base pair
@@ -52,19 +50,19 @@ PAIR_WITH = "USDT"
 
 
 #select the total quantity required
-QUNATITY = 15
+QUANTITY = 15
 
 
 # list trade pairs to exclude
 FIATS = ["EURUSDT", "GBPUSDT","JPYUSDT", "USDUSDT", "DOWN", "UP"]
 
 
-#time lag to calculate the time difference
-TIME_DIFFERENCE = 5
+#time lag to calculate the time difference in minutes
+TIME_DIFFERENCE = 1
 
 
 #threshold in percentage change to determine which coin to buy
-CHANGE_IN_PRICE = 3
+CHANGE_IN_PRICE = 0.3
 
 # When to sell a coin that is not making profit
 STOP_LOSS = 3
@@ -112,9 +110,6 @@ def get_price():
     return initial_price
 
 
-price = get_price()
-pprint(price)
-
 
 #GET CURRENT PRICE
 #_________________________________________________________________
@@ -143,11 +138,62 @@ def wait_for_price():
             if threshold_check > CHANGE_IN_PRICE:
                 volatile_coins[coin] = threshold_check
                 volatile_coins[coin] = round(volatile_coins[coin], 3)
-
                 print(f"{coin} has gained {volatile_coins[coin]}% in the last {TIME_DIFFERENCE}minutes, calculating volume in {PAIR_WITH}")
-                
+
+        # there are no coins recorded in our volatility dictionary
         if len(volatile_coins) < 1:
                 print(f'No coins moved more than {CHANGE_IN_PRICE}% in the last {TIME_DIFFERENCE} minute(s)')
 
+        return volatile_coins, len(volatile_coins), last_price
+
+def convert_volume():
+    volatile_coins,no_coins, last_price = wait_for_price()
+    lots_size = {}
+    volume = {}
+
+    for coin in volatile_coins:
+        try:
+            lots_size = {}
+            info = client.get_symbol_info(coin)
+            step_size = info['filters'][1]['stepSize']
+            lots_size[coin] = step_size.index("1")-1
+
+            if lots_size[coin]< 0:
+                lots_size[coin] = 0
+        except:
+            pass
+
+        volume[coin] = float(QUANTITY / float(last_price[coin]['price']))
+
+        if coin not in lots_size:
+            print(volume[coin])
+            volume[coin] = float('{:.1f}'.format(volume[coin]))
+            print(volume[coin])
+        else:
+            print(coin)
+            print("initial",volume[coin])
+            print(lots_size[coin])
+            if lots_size[coin] == 0:
+                volume[coin] = round(volume[coin],lots_size[coin])
+                volume[coin] = int(volume[coin])
+            else:
+                volume[coin] = round(volume[coin],lots_size[coin])
+
+            print("after round off",volume[coin])
+
+            print()
+
+    
+    
+
+if __name__ == "__main__":
+    convert_volume()
+
+ 
+
+        
 
 
+        
+
+  
