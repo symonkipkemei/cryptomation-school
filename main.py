@@ -166,24 +166,57 @@ def convert_volume():
         volume[coin] = float(QUANTITY / float(last_price[coin]['price']))
 
         if coin not in lots_size:
-            print(volume[coin])
             volume[coin] = float('{:.1f}'.format(volume[coin]))
-            print(volume[coin])
+
         else:
-            print(coin)
-            print("initial",volume[coin])
-            print(lots_size[coin])
             if lots_size[coin] == 0:
+                #remove the decimal point if lot size is o
                 volume[coin] = round(volume[coin],lots_size[coin])
                 volume[coin] = int(volume[coin])
             else:
+                #round to the lots size decimal points
                 volume[coin] = round(volume[coin],lots_size[coin])
-
-            print("after round off",volume[coin])
-
-            print()
+    return volume, last_price
 
     
+def trade():
+    volume, last_price = volume()
+    orders = {}
+    for coin in volume:
+
+        #only buy if there are no active trades on the coin
+        if coin not in coins_bought or coins_bought[coin] == None:
+            print(f"preparing to buy {volume[coin], {coin}}")
+
+            if TESTNET:
+                test_order = client.create_test_order(symbol=coin,
+                side="BUY",
+                type="MARKET",
+                quantity=volume[coin]
+                )
+
+                # try to create a real order if the test orders did not raise an exception
+                try:
+                    buy_limit = client.create_order(
+                        symbol=coin,
+                        side='BUY',
+                        type='MARKET',
+                        quantity=volume[coin]
+                    )
+
+                # error handling here in case position cannot be placed
+                except Exception as e:
+                    print(e)
+            
+                # run the else block if the position has been placed and return order info
+            else:
+                orders[coin] = client.get_all_orders(symbol=coin, limit=1)
+        else:
+             print(f'Signal detected, but there is already an active trade on {coin}')
+
+
+
+            
     
 
 if __name__ == "__main__":
@@ -192,8 +225,3 @@ if __name__ == "__main__":
  
 
         
-
-
-        
-
-  
