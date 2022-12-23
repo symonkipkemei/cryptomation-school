@@ -50,7 +50,7 @@ PAIR_WITH = "USDT"
 
 
 #select the total quantity required
-QUANTITY = 15
+QUANTITY = 100
 
 
 # list trade pairs to exclude
@@ -58,17 +58,17 @@ FIATS = ["EURUSDT", "GBPUSDT","JPYUSDT", "USDUSDT", "DOWN", "UP"]
 
 
 #time lag to calculate the time difference in minutes
-TIME_DIFFERENCE = 1
+TIME_DIFFERENCE = 5
 
 
 #threshold in percentage change to determine which coin to buy
-CHANGE_IN_PRICE = 0.3
+CHANGE_IN_PRICE = 0.5
 
 # When to sell a coin that is not making profit
-STOP_LOSS = 3
+STOP_LOSS = 1
 
 #when to take profit on a profitable coin
-TAKE_PROFIT = 6
+TAKE_PROFIT = 2
 
 
 
@@ -180,7 +180,7 @@ def convert_volume():
 
     
 def trade():
-    volume, last_price = volume()
+    volume, last_price = convert_volume()
     orders = {}
     for coin in volume:
 
@@ -195,33 +195,89 @@ def trade():
                 quantity=volume[coin]
                 )
 
-                # try to create a real order if the test orders did not raise an exception
-                try:
-                    buy_limit = client.create_order(
-                        symbol=coin,
-                        side='BUY',
-                        type='MARKET',
-                        quantity=volume[coin]
-                    )
+            # try to create a real order if the test orders did not raise an exception
+            try:
+                buy_limit = client.create_order(
+                    symbol=coin,
+                    side='BUY',
+                    type='MARKET',
+                    quantity=volume[coin]
+                )
 
-                # error handling here in case position cannot be placed
-                except Exception as e:
-                    print(e)
+            # error handling here in case position cannot be placed
+            except Exception as e:
+                print(e)
             
-                # run the else block if the position has been placed and return order info
+            # run the else block if the position has been placed and return order info
             else:
                 orders[coin] = client.get_all_orders(symbol=coin, limit=1)
+
         else:
              print(f'Signal detected, but there is already an active trade on {coin}')
 
+    return orders,last_price,volume
 
 
-            
-    
+def update_portfolio(orders,last_price,volume):
+    for coin in orders:
+        coins_bought[coin]={
+            "symbol":orders[coin][0]["symbol"],
+            "orderid":orders[coin][0]["orderId"],
+            "timestamp":orders[coin][0]["time"],
+            "bought_at":last_price[coin]["price"],
+            "volume":volume[coin]
+        }
+
+    with open(coins_bought_file_path,"w") as file:
+        json.dump(coins_bought,file,indent=4)
+
+
+def sell_coins():
+    '''sell coins that have reached the STOP LOSS or TAKE PROFIT thershold'''
+
+    last_price = get_price()
+
+    for coin in coins_bought:
+        # define stop loss and take profit
+        TP = float(coins_bought[coin]['bought_at']) + (float(coins_bought[coin]['bought_at']) * TAKE_PROFIT) / 100
+        SL = float(coins_bought[coin]['bought_at']) - (float(coins_bought[coin]['bought_at']) * STOP_LOSS) / 100
+
+        # check that the price is above the take profit or below the stop loss
+        if float(last_price[coin]['price']) > TP or float(last_price[coin]['price']) < SL:
+            print(f"TP or SL reached, selling {coins_bought[coin]['volume']} {coin}...")
+
+            if TESTNET :
+                # create test order before pushing an actual order
+                test_order = client.create_test_order(symbol=coin, side='SELL', type='MARKET', quantity=coins_bought[coin]['volume'])
+
+            # try to create a real order if the test orders did not raise an exception
+            try:
+                sell_coins_limit = client.create_order(
+                    symbol=coin,
+                    side='SELL',
+                    type='MARKET',
+                    quantity=coins_bought[coin]['volume']
+                )
+
+            # error handling here in case position cannot be placed
+            except Exception as e:
+                print(e)
+
+            # run the else block if the position has been placed and update the coins bought json file
+            else:
+                coins_bought[coin] = None
+                with open(coins_bought_file_path, 'w') as file:
+                    json.dump(coins_bought, file, indent=4)
+        else:
+            print(f'TP or SL not yet reached, not selling {coin} for now...')
+
 
 if __name__ == "__main__":
-    convert_volume()
+    for i in count():
+        orders, last_price, volume = trade()
+        update_portfolio(orders, last_price, volume)
+        sell_coins()
 
- 
+    
 
         
